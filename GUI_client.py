@@ -1,5 +1,21 @@
 import tkinter as tk
 from tkinter import *
+import Packet
+
+#vom avea variabile pentru fiecare tip de optiune valabila
+SUBNET_MASK_OPTION=b'\x01'
+ROUTER_OPTION=b'\x03'
+DOMAIN_NAME_SERVER_OPTION=b'\x06'
+REQUESTED_IP_ADDRESS_OPTION=b'\x32'
+IP_ADDRESS_LEASE_TIME_ADDRESS_OPTION=b'\x33'
+DHCP_MESSAGE_TYPE_OPTION=b'\x35'
+SERVER_IDENTIFIER_OPTION=b'\x36'
+PARAMETER_REQUESTED_LIST_OPTION=b'\x37'
+RENEWAL_TIME_VALUE_OPTION=b'\x3a'
+REBINDING_TIME_VALUE_OPTION=b'\x3b'
+END_OPTION=b'\xff'
+
+packet=[]
 
 class GUI_client():
 
@@ -25,14 +41,43 @@ class GUI_client():
         self.RENEWAL_TIME = IntVar()
         self.REBINDING_TIME = IntVar()
         self.END = IntVar()
+        self.END.set(1)
 
         # cand o sa fie gata clasa client,aceast buton va avea command=self.discover
         self.button_start=Button(self.opt_frame,height=2,width=10,text="Start")
+        self.button_load_option=Button(self.opt_frame,height=2,width=10,text="Load",command=self.loadOption)
         self.ip_entry=Entry(self.opt_frame)
         self.lease_entry=Entry(self.opt_frame)
 
         self.text=Text(self.right_frame,width=45,height=16)
         self.text_terminal=Text(self.right_frame,width=45,height=16)
+
+    def loadOption(self):
+        global packet
+        packet=[]
+        if(self.SUBNET_MASK.get()):
+            packet+=SUBNET_MASK_OPTION
+        if(self.ROUTER.get()):
+            packet+=ROUTER_OPTION
+        if(self.DNS.get()):
+            packet+=DOMAIN_NAME_SERVER_OPTION
+        if(self.REQUESTED_IP_ADDRESS.get()):
+            packet+=REQUESTED_IP_ADDRESS_OPTION
+        if(self.LEASE_TIME.get()):
+            packet+=IP_ADDRESS_LEASE_TIME_ADDRESS_OPTION
+        if(self.MESSAGE_TYPE.get()):
+            packet+=DHCP_MESSAGE_TYPE_OPTION
+        if(self.SERVER_IDENTIFIER.get()):
+            packet+=SERVER_IDENTIFIER_OPTION
+        if(self.PARAMETER_REQUESTED_LIST.get()):
+            packet+=PARAMETER_REQUESTED_LIST_OPTION
+        if(self.RENEWAL_TIME.get()):
+            packet+=RENEWAL_TIME_VALUE_OPTION
+        if(self.REBINDING_TIME.get()):
+            packet+=REBINDING_TIME_VALUE_OPTION
+        if(self.END.get()):
+            packet+=END_OPTION
+        print(packet)
 
     def disable_entry(self):
         if(self.REQUESTED_IP_ADDRESS.get()==1):
@@ -84,6 +129,8 @@ class GUI_client():
         opt10_ck = Checkbutton(self.opt_frame, variable=self.REBINDING_TIME, height=2, width=4)
         opt11_ck = Checkbutton(self.opt_frame, variable=self.END, height=2, width=4)
 
+
+
         opt1_label.grid(row=2, column=1, sticky='w')
         opt2_label.grid(row=3, column=1, sticky='w')
         opt3_label.grid(row=4, column=1, sticky='w')
@@ -99,6 +146,7 @@ class GUI_client():
         opt9_label.grid(row=10, column=1, sticky='w')
         opt10_label.grid(row=11, column=1, sticky='w')
         opt11_label.grid(row=12, column=1, sticky='w')
+        opt11_label.config(state="disable")
 
         opt1_ck.grid(row=2, column=0)
         opt2_ck.grid(row=3, column=0)
@@ -111,8 +159,10 @@ class GUI_client():
         opt9_ck.grid(row=10, column=0)
         opt10_ck.grid(row=11, column=0)
         opt11_ck.grid(row=12, column=0)
+        opt11_ck.config(state="disable")
 
         self.button_start.grid(row=15,column=0,padx=20,pady=20)
+        self.button_load_option.grid(row=15,column=1,padx=20,pady=20)
 
     def write_text(self,information):
         self.text.insert(END,str(information))
