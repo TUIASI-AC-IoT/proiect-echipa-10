@@ -33,7 +33,7 @@ class GuiClient:
         self.END = IntVar()
 
         # cand o sa fie gata clasa client,aceast buton va avea command=self.discover
-        self.button_start = Button(self.opt_frame, command=self.backend.send_discover(), height=2, width=10,
+        self.button_start = Button(self.opt_frame, command=self.backend.send_discover, height=2, width=10,
                                    text="Start")
         self.ip_entry = Entry(self.opt_frame)
         self.lease_entry = Entry(self.opt_frame)
@@ -130,19 +130,18 @@ class GuiClient:
     def delete_text(self):
         self.text.delete(0, END)
 
-    # cod preluat de la https://tkdocs.com/tutorial/text.html, sectiunea example: logging window
     def write_to_terminal(self, msg):
-        numlines = int(self.text_terminal.index('end - 1 line').split('.')[0])
         self.text_terminal['state'] = 'normal'
-        if numlines == 24:
-            self.text_terminal.delete(1.0, 2.0)
-        if self.text_terminal.index('end-1c') != '1.0':
-            self.text_terminal.insert('end', '\n')
         self.text_terminal.insert('end', msg)
         self.text_terminal['state'] = 'disabled'
 
+    def cleanup(self):
+        self.backend.cleanup()
+
 
 if __name__ == "__main__":
-    gui = tk.Tk()
-    GuiClient(gui).run()
-    gui.mainloop()
+    window = tk.Tk()
+    gui_client = GuiClient(window)
+    gui_client.run()
+    window.mainloop()
+    gui_client.cleanup()

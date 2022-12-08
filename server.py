@@ -3,60 +3,45 @@ import sys
 import select
 import threading
 
-
-def receive_fct():
-    global running
-    contor = 0
-    while running:
-        # Apelam la functia sistem IO -select- pentru a verifca daca socket-ul are date in bufferul de receptie
-        # Stabilim un timeout de 1 secunda
-        r, _, _ = select.select([s], [], [], 1)
-        if not r:
-            contor = contor + 1
-        else:
-            data, address = s.recvfrom(1024)
-
-            #
-            print("S-a receptionat ", str(data), " de la ", address)
-            print("Contor= ", contor)
+from GUI_server import GUIServer
 
 
-# Citire nr port din linia de comanda
-if len(sys.argv) != 4:
-    print("help : ")
-    print("  --sport=numarul_meu_de_port ")
-    print("  --dport=numarul_de_port_al_peer-ului ")
-    print("  --dip=ip-ul_peer-ului ")
-    sys.exit()
+class Server:
 
-for arg in sys.argv:
-    if arg.startswith("--sport"):
-        temp, sport = arg.split("=")
-    elif arg.startswith("--dport"):
-        temp, dport = arg.split("=")
-    elif arg.startswith("--dip"):
-        temp, dip = arg.split("=")
+    def __init__(self, gui: GUIServer, source_port=67, destination_port=68, destination_ip='127.0.0.1'):
+        self.gui = gui
+        self.destination_port = destination_port
+        self.destination_ip = destination_ip
+        # Creare socket UDP
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        self.socket.bind(('0.0.0.0', int(source_port)))
+        self.running = True
+        try:
+            self.receive_thread = threading.Thread(target=self.receive_fct)
+            self.receive_thread.start()
+        except:
+            print("Eroare la pornirea thread‐ului")
+            sys.exit()
 
-# Creare socket UDP
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    def receive_fct(self):
+        contor = 0
+        while self.running:
+            # Apelam la functia sistem IO -select- pentru a verifca daca socket-ul are date in bufferul de receptie
+            # Stabilim un timeout de 1 secunda
+            r, _, _ = select.select([self.socket], [], [], 1)
+            if not r:
+                contor = contor + 1
+            else:
+                data, address = self.socket.recvfrom(1024)
+                #
+                self.gui.write_to_terminal(
+                    "S-a receptionat mesaj de la " + str(address))
+                self.gui.write_to_terminal("Contor= " + contor)
 
-s.bind(('0.0.0.0', int(sport)))
-
-running = True
-
-try:
-    receive_thread = threading.Thread(target=receive_fct)
-    receive_thread.start()
-except:
-    print("Eroare la pornirea thread‐ului")
-    sys.exit()
-
-while True:
-    try:
-        data = input("Trimite: ")
-        s.sendto(bytes(data, encoding="ascii"), (dip, int(dport)))
-    except KeyboardInterrupt:
-        running = False
+    def cleanup(self):
+        self.running = False
         print("Waiting for the thread to close...")
-        receive_thread.join()
-        break
+        self.receive_thread.join()
+        print("Closing socket...")
+        self.socket.close()
+        print("Cleanup done!")

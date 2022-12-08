@@ -37,14 +37,22 @@ class Client:
         while self.running:
             # Apelam la functia sistem IO -select- pentru a verifca daca socket-ul are date in bufferul de receptie
             # Stabilim un timeout de 1 secunda
-            r, _, _ = select.select([self.socket], [], [], 1)
+            r, _, _ = select.select([self.socket], [], [], 10)
             if not r:
                 contor = contor + 1
             else:
                 data, address = self.socket.recvfrom(1024)
                 #
-                self.gui.write_to_terminal("S-a receptionat " + str(data) + " de la " + address)
+                self.gui.write_to_terminal("S-a receptionat mesaj de la " + str(address))
                 self.gui.write_to_terminal("Contor= " + contor)
+
+    def cleanup(self):
+        self.running = False
+        print("Waiting for the thread to close...")
+        self.receive_thread.join()
+        print("Closing socket...")
+        self.socket.close()
+        print("Cleanup done!")
 
     def send_discover(self):
         self.socket.sendto(DHCP_Message.getBasicDISCOVER(gen_xid(), 0xf34a93dc2116),
