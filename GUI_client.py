@@ -17,11 +17,17 @@ END_OPTION=b'\xff'
 
 packet=[]
 
-class GUI_client():
+import client
+
+
+class GuiClient:
 
     def __init__(self,gui_client):
         super().__init__()
-        #initializare fereastra
+        # initializare backend
+        self.backend = client.Client(self)
+
+        # initializare fereastra
         gui_client.title("DHCP Client")
         gui_client.geometry("900x600")
         gui_client.resizable(False,False)
@@ -120,8 +126,10 @@ class GUI_client():
         opt1_ck = Checkbutton(self.opt_frame, variable=self.SUBNET_MASK, height=2, width=4)
         opt2_ck = Checkbutton(self.opt_frame, variable=self.ROUTER, height=2, width=4)
         opt3_ck = Checkbutton(self.opt_frame, variable=self.DNS, height=2, width=4)
-        opt4_ck = Checkbutton(self.opt_frame, variable=self.REQUESTED_IP_ADDRESS, height=2, width=4,command=self.disable_entry)
-        opt5_ck = Checkbutton(self.opt_frame, variable=self.LEASE_TIME, height=2, width=4,command=self.disable_entry_lease)
+        opt4_ck = Checkbutton(self.opt_frame, variable=self.REQUESTED_IP_ADDRESS, height=2, width=4,
+                              command=self.disable_entry)
+        opt5_ck = Checkbutton(self.opt_frame, variable=self.LEASE_TIME, height=2, width=4,
+                              command=self.disable_entry_lease)
         opt6_ck = Checkbutton(self.opt_frame, variable=self.MESSAGE_TYPE, height=2, width=4)
         opt7_ck = Checkbutton(self.opt_frame, variable=self.SERVER_IDENTIFIER, height=2, width=4)
         opt8_ck = Checkbutton(self.opt_frame, variable=self.PARAMETER_REQUESTED_LIST, height=2, width=4)
@@ -129,17 +137,15 @@ class GUI_client():
         opt10_ck = Checkbutton(self.opt_frame, variable=self.REBINDING_TIME, height=2, width=4)
         opt11_ck = Checkbutton(self.opt_frame, variable=self.END, height=2, width=4)
 
-
-
         opt1_label.grid(row=2, column=1, sticky='w')
         opt2_label.grid(row=3, column=1, sticky='w')
         opt3_label.grid(row=4, column=1, sticky='w')
         opt4_label.grid(row=5, column=1, sticky='w')
-        self.ip_entry.config(state="disable")
-        self.ip_entry.grid(row=5,column=2)
+        self.ip_entry.config(state="disabled")
+        self.ip_entry.grid(row=5, column=2)
         opt5_label.grid(row=6, column=1, sticky='w')
-        self.lease_entry.config(state="disable")
-        self.lease_entry.grid(row=6,column=2)
+        self.lease_entry.config(state="disabled")
+        self.lease_entry.grid(row=6, column=2)
         opt6_label.grid(row=7, column=1, sticky='w')
         opt7_label.grid(row=8, column=1, sticky='w')
         opt8_label.grid(row=9, column=1, sticky='w')
@@ -170,9 +176,18 @@ class GUI_client():
     def delete_text(self):
         self.text.delete(0,END)
 
-if __name__=="__main__":
-    gui=tk.Tk()
-    gui_client=GUI_client(gui).run()
-    gui.mainloop()
+    def write_to_terminal(self, msg):
+        self.text_terminal['state'] = 'normal'
+        self.text_terminal.insert('end', msg)
+        self.text_terminal['state'] = 'disabled'
+
+    def cleanup(self):
+        self.backend.cleanup()
 
 
+if __name__ == "__main__":
+    window = tk.Tk()
+    gui_client = GuiClient(window)
+    gui_client.run()
+    window.mainloop()
+    gui_client.cleanup()
