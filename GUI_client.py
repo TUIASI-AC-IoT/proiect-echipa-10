@@ -50,7 +50,7 @@ class GuiClient:
         self.END.set(1)
 
         # cand o sa fie gata clasa client,aceast buton va avea command=self.discover
-        self.button_start=Button(self.opt_frame,height=2,width=10,text="Start")
+        self.button_start=Button(self.opt_frame,command=self.backend.send_discover,height=2,width=10,text="Start")
         self.button_load_option=Button(self.opt_frame,height=2,width=10,text="Load",command=self.loadOption)
         self.ip_entry=Entry(self.opt_frame)
         self.lease_entry=Entry(self.opt_frame)
@@ -179,6 +179,7 @@ class GuiClient:
     def write_to_terminal(self, msg):
         self.text_terminal['state'] = 'normal'
         self.text_terminal.insert('end', msg)
+        self.text_terminal.insert('end','\n')
         self.text_terminal['state'] = 'disabled'
 
     def cleanup(self):
