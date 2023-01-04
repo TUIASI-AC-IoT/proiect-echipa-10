@@ -1,204 +1,173 @@
-import random
 import socket
-#constantele utilizate pentru a realiza pachetul
-#op
-REQUEST=b'\x01'
-REPLY=b'\x02'
+import random
+import struct
 
-#htype=1 hardware type-ethernet
-HTYPE=b'\x01'
-
-#hlen=6 hardware address length
-HLEN=b'\x06'
-
-#magic cookie care va aparea in fata campului de optiuni daca acestea exista
-MAGIC_COOKIE=b'\x63\x82\x53\x63'
-
-#pentru posibilitatea de a avea optiunea 53
-DHCPDISCOVER=1
-DHCPOFFER=2
-DHCPREQUEST=3
-DHCPDECLINE=4
-DHCPACK=5
-DHCPNAK=6
-DHCPRELEASE=7
-DHCPINFORM=8
-
-#pentru a putea afisa mai usor tipul mesajelor
-TIP_MESAJ=("","DHCPDISCOVER",
-           "DHCPOFFER",
-           "DHCPREQUEST",
-           "DHCPDECLINE",
-           "DHCPACK",
-           "DHCPNAK",
-           "DHCPRELEASE",
-           "DHCPINFORM")
+# pentru a putea afisa mai usor tipul mesajelor
+TIP_MESAJ = ("", "DHCPDISCOVER",
+             "DHCPOFFER",
+             "DHCPREQUEST",
+             "DHCPDECLINE",
+             "DHCPACK",
+             "DHCPNAK",
+             "DHCPRELEASE",
+             "DHCPINFORM")
 
 
+class BOOTPHeader(object):
+    REQUEST = b'\x01'
+    REPLY = b'\x02'
 
-class Packet(object):
+    def __init__(self, opcode, mac):
+        # initializare parametri pachet
 
-    def __init__(self,MESSAGE_TYPE,XID,CHADDR,YIADDR,SIADDR,CIADDR,GIADDR):
+        self.opcode = opcode
+        self.hardware_type = b'\x01'
+        self.hardware_address_length = b'\x06'
+        self.hops = b'\x00'
+        self.xid = self.gen_xid()
+        self.seconds = b'\x00\x00'
+        self.flags = b'\x80\x00'
+        self.client_ip = b'\x00\x00\x00\x00'
+        self.your_ip = b'\x00\x00\x00\x00'
+        self.server_ip = b'\x00\x00\x00\x00'
+        self.gateway_ip = b'\x00\x00\x00\x00'
+        self.client_hardware_address = mac + b'\x00' * 10  # 10 octeti padding
+        self.server_host_name = b'\x00' * 64
+        self.boot_filename = b'\x00' * 128  # boot filename
+        self.options = ''  # acest camp se va actualiza in functie de optiunile alese de client din interfata
 
-        bxid = bytes.fromhex(hex(XID)[2:].zfill(8))
-        bchaddr = bytes.fromhex(hex(CHADDR)[2:].zfill(12))
+    def gen_xid(self):
+        return random.randbytes(4)
 
-        self.broadcast=0
-        self.HOPS=b'\x00'   #hops initializat cu 0
-        self.XID = bxid     #xid initializat cu un numar random
-        self.SECS=b'\x00\x00'
-
-        #cele 4 adrese sunt initializate cu 0
-        self.CIADDR = b'\x00\x00\x00\x00'
-        self.YIADDR = b'\x00\x00\x00\x00'
-        self.SIADDR = b'\x00\x00\x00\x00'
-        self.GIADDR = b'\x00\x00\x00\x00'
-
-        self.CHADDR=bchaddr
-        self.SNAME=b'\x00'*64 #server name
-        self.FILE=b'\x00'*128 #boot filename
-        self.MESSAGE=None #acest camp se va actualiza in functie de optiunile alese de client din interfata
-
-        self.modificari(MESSAGE_TYPE,YIADDR,SIADDR,CIADDR,GIADDR)
-        self.pack=self.impachetare()
-        self.desp=self.despachetare(self.pack)
-        self.to_string(MESSAGE_TYPE)
-
+    def pack(self):
+        return b''.join([self.opcode, self.hardware_type, self.hardware_address_length,
+                         self.hops, self.xid, self.seconds, self.flags, self.client_ip, self.your_ip,
+                         self.server_ip, self.gateway_ip, self.client_hardware_address, self.server_host_name,
+                         self.boot_filename, self.options])
 
 
-    def impachetare(self)->list[bytes]:
-        packet = [self.OP,
-                  HTYPE,
-                  HLEN,
-                  self.HOPS,
-                  self.XID,
-                  self.SECS,
-                  self.FLAGS,
-                  self.CIADDR,
-                  self.YIADDR,
-                  self.SIADDR,
-                  self.GIADDR,
-                  self.CHADDR,
-                  self.SNAME,
-                  self.FILE,
-                  MAGIC_COOKIE]
-        print(packet)
-        return packet
+class Packet(BOOTPHeader):
+    # tipurile de mesaj
+    DHCPDISCOVER = b'\x01'
+    DHCPOFFER = b'\x02'
+    DHCPREQUEST = b'\x03'
+    DHCPDECLINE = b'\x04'
+    DHCPACK = b'\x05'
+    DHCPNAK = b'\x06'
+    DHCPRELEASE = b'\x07'
+    DHCPINFORM = b'\x08'
 
-    def despachetare(self,packet:bytes)->dict[str:bytes]:
+    # optiunile disponibile
+    SUBNET_MASK_OPTION = b'\x01'
+    ROUTER_OPTION = b'\x03'
+    DOMAIN_NAME_SERVER_OPTION = b'\x06'
+    REQUESTED_IP_ADDRESS_OPTION = b'\x32'
+    IP_ADDRESS_LEASE_TIME_ADDRESS_OPTION = b'\x33'
+    DHCP_MESSAGE_TYPE_OPTION = b'\x35'
+    SERVER_IDENTIFIER_OPTION = b'\x36'
+    PARAMETER_REQUESTED_LIST_OPTION = b'\x37'
+    RENEWAL_TIME_VALUE_OPTION = b'\x3a'
+    REBINDING_TIME_VALUE_OPTION = b'\x3b'
+    END_OPTION = b'\xff'
 
-        packet_despachetat={'OP':packet[0:1],
-                            'HTYPE':packet[1:2],
-                            'HLEN':packet[2:3],
-                            'HOPS':packet[3:4],
-                            'XID':packet[4:5],
-                            'SECS':packet[5:6],
-                            'FLAGS':packet[6:7],
-                            'CIADDR':packet[7:8],
-                            'YIADDR':packet[8:9],
-                            'SIADDR':packet[9:10],
-                            'GIADDR':packet[10:11],
-                            'CHADDR':packet[11:12],
-                            'SNAME':packet[12:13],
-                            'FILE':packet[13:14],
-                            'COOKIE':packet[14:15]}
-        print(packet_despachetat)
-        return packet_despachetat
-
-    def modificari(self,message_type,yiaddr_address,siaddr_address,ciaddr_address,giaddr_address):
-
-        yiaddr=socket.inet_aton(yiaddr_address)
-        siaddr=socket.inet_aton(siaddr_address)
-        ciaddr=socket.inet_aton(ciaddr_address)
-        giaddr=socket.inet_aton(giaddr_address)
-
-        if (message_type == DHCPDISCOVER or message_type == DHCPREQUEST):
-            self.broadcast = 1
-
-        if (self.broadcast):
-            self.FLAGS = b'\x80\x00'
-        else:
-            self.FLAGS = b'\x00\x00'
+    def __init__(self, message_type, mac):
 
         # dam valoare parametrului opcode
 
-        if (message_type == DHCPDISCOVER or + \
-                message_type == DHCPREQUEST or + \
-                message_type == DHCPDECLINE or + \
-                message_type == DHCPRELEASE or + \
-                message_type == DHCPINFORM):
-            self.OP = REQUEST
-        elif (message_type == DHCPOFFER or + \
-                message_type == DHCPACK or + \
-                message_type == DHCPNAK):
-            self.OP = REPLY
+        if (message_type == self.DHCPOFFER or message_type == self.DHCPACK or message_type == self.DHCPNAK):
+            opcode = BOOTPHeader.REPLY
         else:
-            raise Exception("Mesaj DHCP necunoscut!!")
+            opcode = BOOTPHeader.REQUEST
 
-        if(message_type==DHCPINFORM):
-            self.CIADDR=ciaddr
-        elif(message_type==DHCPOFFER):
-            self.YIADDR=yiaddr
-            #self.SIADDR=siaddr  #acesta va veni prin optiune
-        #elif(message_type==DHCPREQUEST):
-        #    self.SIADDR=siaddr
-        #    self.GIADDR=giaddr
-        elif(message_type==DHCPACK):
-            #self.CIADDR=ciaddr
-            self.YIADDR=yiaddr
-            #self.SIADDR=siaddr
-        elif(message_type==DHCPNAK):
-            self.GIADDR=giaddr
-        elif(message_type==DHCPRELEASE):
-            self.CIADDR=ciaddr
+        super(Packet,self).__init__(opcode, mac)
+        self.option_list = []
 
+        self.add_option(self.DHCP_MESSAGE_TYPE_OPTION, message_type)
 
+    def add_option(self, option, *args):
+        value = b''
+        length = 0
+        for i in args:
+            length += len(i)
+            value += i
+        if length > 0:
+            length = bytes([length])
+        else:
+            length = b''
+        self.option_list.append(option + length + value)
 
-    #pentru afisarea pe interfata clientului
-    def to_string(self,MESSAGE_TYPE):
+    def pack(self):
+        self.add_option
+        self.options = b'\x63\x82\x53\x63'  # Magic cookie
 
-        print(f"Tipul mesajului este {MESSAGE_TYPE}-{TIP_MESAJ[MESSAGE_TYPE]}")
-        int_op=int.from_bytes(self.OP,"big")
-        print(f"Opcode={int_op}")
-        int_htype = int.from_bytes(HTYPE, "big")
-        print(f"Htype={int_htype}")
-        int_hlen = int.from_bytes(HLEN, "big")
-        print(f"Hlen={int_hlen}")
-        int_hops = int.from_bytes(self.HOPS, "big")
-        print(f"Hops={int_hops}")
-        int_xid=int.from_bytes(self.XID,"big")
-        print(f"Xid={int_xid}")
-        int_secs = int.from_bytes(self.SECS, "big")
-        print(f"Xid={int_secs}")
-        print(f"Flags={self.FLAGS}")
-        print(f"Ciaddr={socket.inet_ntoa(self.CIADDR)}")
-        print(f"Yiaddr={socket.inet_ntoa(self.YIADDR)}")
-        print(f"Siaddr={socket.inet_ntoa(self.SIADDR)}")
-        print(f"Giaddr={socket.inet_ntoa(self.GIADDR)}")
-        chaddr=self.CHADDR.hex(":")
-        print(f"Chaddr={chaddr}")
-        #aceste doua campuri sunt provizorii pana vom adauga date
-        int_sname=int.from_bytes(self.SNAME,"big")
-        print(f"Sname={int_sname}")
-        int_file=int.from_bytes(self.FILE,"big")
-        print(f"File={int_file}")
-        #cand vom adauga date
-        #sname=self.SNAME.decode("ascii")
-        #print(f"Sname={sname}")
-        #file=self.FILE.decode("ascii")
-        #print(f"File={file}")
-        print(f"Magic cookie={socket.inet_ntoa(MAGIC_COOKIE)}")
+        self.options += b''.join(self.option_list)
 
+        # Adauga la sfarsit optiunea END
+        self.options += Packet.END_OPTION
+        return super(Packet, self).pack()
 
+    def unpack(self, data):
+        self.opcode, self.hardware_type, self.hardware_address_length, \
+        self.hops, self.xid, self.seconds, self.flags, self.client_ip, \
+        self.your_ip, self.server_ip, self.gateway_ip, self.client_hardware_address, \
+        self.server_host_name, self.boot_filename, self.options \
+            = struct.unpack('cccc4s2s2s4s4s4s4s16s64s128s' + str(len(data) - 236) + 's', data)
 
+        self.opt_dict = {}
+        idx = 4
 
+        while True:
 
-def gen_xid():
-    return random.randint(1, 0xffffffff)
+            op_code = self.options[idx]
+            if op_code == 255:
+                self.opt_dict[op_code] = ''
+                break
+            op_len = self.options[idx + 1]
+            op_data = self.options[idx + 2:idx + 2 + op_len]
+            idx = idx + 2 + op_len
+            self.opt_dict[op_code] = op_data
 
-if __name__=="__main__":
-    packet1=Packet(DHCPOFFER,gen_xid(),0xf34a93dc2116,'168.162.30.1','30.20.12.12','15.16.62.12','150.162.13.25')
+    # pentru afisarea pe interfata clientului
+    def to_string(self):
 
+        str=""
+        int_op = int.from_bytes(self.opcode, "big")
+        str+=f"Opcode={int_op}"+"\n"
 
+        int_htype = int.from_bytes(self.hardware_type, "big")
+        str+=f"Hardware type={int_htype}"+"\n"
 
+        int_hlen = int.from_bytes(self.hardware_address_length, "big")
+        str+=f"Hardware address length{int_hlen}"+"\n"
 
+        int_hops = int.from_bytes(self.hops, "big")
+        str+=f"Hops={int_hops}"+"\n"
+
+        int_xid = int.from_bytes(self.xid, "big")
+        str+=f"Xid={int_xid}"+"\n"
+
+        int_secs = int.from_bytes(self.seconds, "big")
+        str+=f"Xid={int_secs}"+"\n"
+
+        str+=f"Flags={self.flags}"+"\n"
+
+        str+=f"Ciaddr={socket.inet_ntoa(self.client_ip)}"+"\n"
+        str+=f"Yiaddr={socket.inet_ntoa(self.your_ip)}"+"\n"
+        str+=f"Siaddr={socket.inet_ntoa(self.server_ip)}"+"\n"
+        str+=f"Giaddr={socket.inet_ntoa(self.gateway_ip)}"+"\n"
+
+        chaddr = self.client_hardware_address.hex(":")
+        str+=f"Chaddr={chaddr}"+"\n"
+
+        # aceste doua campuri sunt provizorii pana vom adauga date
+        int_sname = int.from_bytes(self.server_host_name, "big")
+        #print(f"Sname={int_sname}")
+        int_file = int.from_bytes(self.boot_filename, "big")
+        #print(f"File={int_file}")
+
+        # sname=self.server_host_name.decode("ascii")
+        # print(f"Sname={sname}")
+        # file=self.boot_filename.decode("ascii")
+        # print(f"File={file}")
+
+        return str

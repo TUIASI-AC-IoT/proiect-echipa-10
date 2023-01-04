@@ -1,7 +1,9 @@
 import socket
+import struct
 import sys
 import select
 import threading
+from Packet import Packet
 
 from GUI_server import GUIServer
 
@@ -13,9 +15,17 @@ class Server:
         self.destination_ip = destination_ip
         # Creare socket UDP
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        self.socket.bind(('0.0.0.0', int(source_port)))
+        # Activare optiune transmitere pachete de difuzie
+        self.socket.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1)
+        #activare optiune refolosire port
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind(('', 67))
+
         self.socket.setblocking(False)
         self.running = True
+
+        self.p_server = Packet(Packet.DHCPOFFER, b'')
+
         try:
             self.receive_thread = threading.Thread(target=self.receive_fct)
             self.receive_thread.start()
@@ -28,16 +38,17 @@ class Server:
         while self.running:
             # Apelam la functia sistem IO -select- pentru a verifca daca socket-ul are date in bufferul de receptie
             # Stabilim un timeout de 1 secunda
-            r, _, _ = select.select([self.socket], [], [], 1)
+            r, _, _ = select.select([self.socket], [], [], 10)
             if not r:
                 contor = contor + 1
             else:
                 data, address = self.socket.recvfrom(1024)
                 #
                 self.gui.write_to_terminal(
-                    "S-a receptionat mesaj de la " + str(address))
-                self.gui.write_to_terminal("Contor= " + str(contor))
-                self.socket.sendto("Mesaj de la server".encode(),address)
+                    "S-a receptionat mesaj DISCOVER de la " + str(address))
+                #self.gui.write_to_terminal("Contor= " + str(contor))
+                self.gui.write_to_terminal("Se trimite mesajul OFFER")
+                self.socket.sendto(self.p_server.pack(),address)
 
     def cleanup(self):
         self.running = False
