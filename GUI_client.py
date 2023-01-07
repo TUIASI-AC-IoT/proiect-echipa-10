@@ -42,6 +42,7 @@ class GuiClient:
         self.REQUESTED_IP_ADDRESS = IntVar()
         self.LEASE_TIME = IntVar()
         self.MESSAGE_TYPE = IntVar()
+        self.MESSAGE_TYPE.set(1)
         self.SERVER_IDENTIFIER = IntVar()
         self.PARAMETER_REQUESTED_LIST = IntVar()
         self.RENEWAL_TIME = IntVar()
@@ -49,8 +50,7 @@ class GuiClient:
         self.END = IntVar()
         self.END.set(1)
 
-        # cand o sa fie gata clasa client,aceast buton va avea command=self.discover
-        self.button_start=Button(self.opt_frame,command=self.backend.send_discover,height=2,width=10,text="Start")
+        self.button_start=Button(self.opt_frame,command=self.backend.discover,height=2,width=10,text="Start")
         self.button_load_option=Button(self.opt_frame,height=2,width=10,text="Load",command=self.loadOption)
         self.ip_entry=Entry(self.opt_frame)
         self.lease_entry=Entry(self.opt_frame)
@@ -147,6 +147,7 @@ class GuiClient:
         self.lease_entry.config(state="disabled")
         self.lease_entry.grid(row=6, column=2)
         opt6_label.grid(row=7, column=1, sticky='w')
+        opt6_label.config(state="disable")
         opt7_label.grid(row=8, column=1, sticky='w')
         opt8_label.grid(row=9, column=1, sticky='w')
         opt9_label.grid(row=10, column=1, sticky='w')
@@ -160,6 +161,7 @@ class GuiClient:
         opt4_ck.grid(row=5, column=0)
         opt5_ck.grid(row=6, column=0)
         opt6_ck.grid(row=7, column=0)
+        opt6_ck.config(state="disable")
         opt7_ck.grid(row=8, column=0)
         opt8_ck.grid(row=9, column=0)
         opt9_ck.grid(row=10, column=0)

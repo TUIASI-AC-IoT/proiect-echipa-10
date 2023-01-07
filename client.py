@@ -1,6 +1,9 @@
 import socket
+import struct
 import sys
 import random
+import time
+
 import select
 import threading
 
@@ -17,6 +20,15 @@ def generate_mac():
     mac= "".join(random.choice("abcdef0123456789") for _ in range(0,12))
     return mac
 
+def mac_to_bytes(mac):
+    while len(mac) < 12:
+        mac = '0' + mac
+    macB = b''
+    for i in range(0, 12, 2):
+        m = int(mac[i:i + 2], 16)
+        macB += struct.pack('!B', m)
+    return macB
+
 
 class Client:
 
@@ -24,15 +36,15 @@ class Client:
         self.gui = gui
         self.destination_port = destination_port
         self.destination_ip = destination_ip
-
-        self.p = Packet(Packet.DHCPDISCOVER,b'\x9c\xb7\x0d\x69\x71\x8d')
-
-
+        self.discover_time=0
 
         # Creare socket UDP
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        #Activare optiune transmitere pachete prin difuzie
         self.socket.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1)
+        #Activare reutilizare adresa
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #cand se trimite raspunsul de la server il va primi tot primul client initiat
         self.socket.bind(("", 68))
         self.running = True
         try:
@@ -52,10 +64,21 @@ class Client:
             if not r:
                 contor = contor + 1
             else:
-                data, address = self.socket.recvfrom(1024)
-                self.gui.write_to_terminal("S-a receptionat mesajul OFFER de la " + str(address))
-                self.gui.write_text(self.p.to_string())
-                #self.gui.write_to_terminal("Contor= " + str(contor))
+                #se asteapta mesajul offer de la server
+                self.gui.write_to_terminal("[CLIENT] Wainting DHCPOFFER")
+                try:
+                    data, address = self.socket.recvfrom(1024)
+                except:
+                    print("Eroare la primirea mesajului de offer")
+                    sys.exit()
+
+                #punem intr-un pachet ce s-a primit
+                pack_offer_receive=Packet()
+                pack_offer_receive.unpack(data)
+                self.gui.write_text(pack_offer_receive.to_string())
+                if pack_offer_receive.opcode==Packet.DHCPOFFER:
+                    self.gui.write_to_terminal("[CLIENT] Received DHCPOFFER")
+
 
     def cleanup(self):
         self.running = False
@@ -65,6 +88,12 @@ class Client:
         self.socket.close()
         print("Cleanup done!")
 
-    def send_discover(self):
-        self.gui.write_to_terminal("S-a trimis mesajul DISCOVER ")
-        self.socket.sendto(self.p.pack(),("<broadcast>", 67))
+    def discover(self):
+        pack_discover=Packet()
+        self.socket.sendto(pack_discover.pack(),("<broadcast>",67))
+        self.gui.write_to_terminal("[CLIENT] Send DISCOVER")
+        #self.discover_time=int(time.time())
+        #print(self.discover_time)
+        #trebuie inceput un thread pentru timer - daca clientul nu primeste raspuns dupa un
+        #anumit timp sa retrimita
+        self.gui.write_text(pack_discover.to_string())
