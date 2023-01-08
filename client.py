@@ -39,7 +39,7 @@ class Client:
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         # Activare reutilizare adresa
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #daca am mai multi clienti
+        # daca am mai multi clienti
         # cand se trimite raspunsul de la server il va primi tot primul client initiat, ma gandesc ca ar fi de la faptul ca e acelasi port,idk
         self.socket.bind(("", 68))
         self.running = True
@@ -91,14 +91,14 @@ class Client:
         counter = 0
         pack_discover = Packet()
         self.xid = pack_discover.xid
-        self.mac = pack_discover.mac
+        self.mac = pack_discover.client_hardware_address
         print('discover inainte')
         print(self.xid)
         print(self.mac)
         while counter < MAX_COUNT:
             self.socket.sendto(pack_discover.pack(), ("<broadcast>", 67))
             self.xid = pack_discover.xid
-            self.mac = pack_discover.mac
+            self.mac = pack_discover.client_hardware_address
             print('dicover dupa')
             print(self.xid)
             print(self.mac)
@@ -112,7 +112,7 @@ class Client:
                 pack_offer_receive.unpack(data)
                 print('offer')
                 print(pack_offer_receive.xid)
-                print(pack_offer_receive.mac)
+                print(pack_offer_receive.client_hardware_address)
                 # check if received message is a valid DHCPOFFER response
                 if pack_offer_receive.opcode == Packet.DHCPOFFER:
                     # process offer and break out of loop
@@ -132,24 +132,20 @@ class Client:
         # reset discover timeout
         self.discover_timeout = self.initial_discover_timeout
 
+        #am rezolvat problema cu mac ul :)) de retinut - trebuie lucrat cu self.client_hardware_address, nu self.mac:))
+        if receive_pack.client_hardware_address != self.mac:
+            print('iesit la mac')
+            return False
         # check if offer is valid
         if receive_pack.xid != self.xid:
             print('iesit la xid')
-            return False
-        # este o problema la mac, nu se transmite bine, ma gandesc ca este de la impachetare si despachetare
-        # dar nu imi dau seama ce. Poate iti reusesti tu sa rezolvi
-        if receive_pack.client_hardware_address != self.mac:
-            print('iesit la mac')
             return False
 
         # OFFER message transmit to client your_ip and server_ip
         self.your_ip = receive_pack.your_ip
         self.server_identifier = receive_pack.server_ip
 
-        self.send_request()
-
-    def send_request(self):
-        pass
+        self.send_request(receive_pack)
 
     def handle_discovery_failure(self):
 
@@ -160,3 +156,21 @@ class Client:
 
         # send another message
         self.discover()
+
+
+    def send_request(self, packet_offer_receive):
+
+        self.gui.write_to_terminal('[CLIENT] Send REQUEST')
+        packet_request = Packet()
+        packet_request.message_type = Packet.REQUEST
+        packet_request.mac = packet_offer_receive.mac
+        packet_request.xid = packet_offer_receive.xid
+        #here we need to considerate that case when client want the address chosen by him
+        packet_request.client_ip = packet_offer_receive.your_ip
+        packet_request.your_ip = packet_offer_receive.your_ip
+        packet_request.server_ip = packet_offer_receive.server_ip
+        packet_request.options = b'\x35\x01\x03' + b'\x36\x04' + packet_offer_receive.server_ip
+
+        self.socket.sendto(packet_request.pack(),("<broadcast>", 67))
+
+
