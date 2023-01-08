@@ -156,8 +156,8 @@ class Packet(BOOTPHeader):
         self.opcode = Packet.DHCPOFFER
         self.xid = xid
         self.client_ip = b'\x00\x00\x00\x00'
-        self.your_ip = bytes(offered_ip,'utf-8')
-        self.server_ip = bytes(server_ip,'utf-8')
+        self.your_ip = socket.inet_aton(offered_ip)
+        self.server_ip = socket.inet_aton(server_ip)
         self.client_hardware_address = mac + b'\x00' * 10
 
         self.options = Packet.DHCP_MESSAGE_TYPE_OPTION + b'\x01' + Packet.DHCPOFFER
@@ -208,7 +208,7 @@ class Packet(BOOTPHeader):
         str += f"Giaddr={socket.inet_ntoa(self.gateway_ip)}" + "\n"
 
         chaddr = self.client_hardware_address.hex(":")
-        str += f"Chaddr={chaddr}" + "\n"
+        str += f"Chaddr={self.client_hardware_address}" + "\n"
 
         # aceste doua campuri sunt provizorii pana vom adauga date
         int_sname = int.from_bytes(self.server_host_name, "big")

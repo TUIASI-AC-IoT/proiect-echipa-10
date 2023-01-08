@@ -56,9 +56,10 @@ class Server:
                     offer_packet = Packet()
                     print("mac")
                     print(packet_discover.mac)
+                    print("\n\n")
                     #OFFER PACKET cu adrese random - pentru client adresa trebuie luata dintr-un pool de adrese,lease time-ul se va lua
                     #din interfata,trebuie modificata si adresa serverului
-                    offer_packet.create_offer_packet('128.56.43.2', '168.23.23.3', packet_discover.xid, packet_discover.mac, 300,packet_discover.options)
+                    offer_packet.create_offer_packet(self.choose_address(), (self.socket.getsockname())[0], packet_discover.xid, packet_discover.mac, 300,packet_discover.options)
                     self.socket.sendto(offer_packet.pack(), address)
                     self.gui.write_to_terminal("[SERVER]Send DHCPOFFER messaje")
 
@@ -69,6 +70,10 @@ class Server:
         print("Closing socket...")
         self.socket.close()
         print("Cleanup done!")
+
+    #choose address from addresss pool - maybe need another way to choose?:))
+    def choose_address(self):
+        return self.address_pool[0]
 
     #aceste functii sunt verificate individual:)
     #verificari adresa - daca e disponibila

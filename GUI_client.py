@@ -194,4 +194,4 @@ if __name__ == "__main__":
     gui_client = GuiClient(window)
     gui_client.run()
     window.mainloop()
-    gui_client.cleanup()
+    #gui_client.cleanup()
