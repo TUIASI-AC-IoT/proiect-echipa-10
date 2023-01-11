@@ -21,11 +21,11 @@ def generate_mac():
 def mac_to_bytes(mac):
     while len(mac) < 12:
         mac = '0' + mac
-    macB = b''
+    mac_bytes = b''
     for i in range(0, 12, 2):
         m = int(mac[i:i + 2], 16)
-        macB += m.to_bytes(1, 'big')
-    return macB
+        mac_bytes += m.to_bytes(1, 'big')
+    return mac_bytes
 
 
 class BOOTPHeader(object):
@@ -85,24 +85,26 @@ class Packet(BOOTPHeader):
     REBINDING_TIME_VALUE_OPTION = b'\x3b'
     END_OPTION = b'\xff'
 
-    def __init__(self):
+    def __init__(self, message_type=DHCPDISCOVER):
 
-        self.message_type = self.DHCPDISCOVER
+        self.message_type = message_type
         self.mac = mac_to_bytes(generate_mac())
 
         # dam valoare parametrului opcode
 
-        if (self.message_type == self.DHCPOFFER or self.message_type == self.DHCPACK or self.message_type == self.DHCPNAK):
-            opcode = BOOTPHeader.REPLY
+        if self.message_type == self.DHCPOFFER or self.message_type == self.DHCPACK or \
+                self.message_type == self.DHCPNAK:
+            self.opcode = BOOTPHeader.REPLY
         else:
-            opcode = BOOTPHeader.REQUEST
+            self.opcode = BOOTPHeader.REQUEST
 
-        super(Packet, self).__init__(opcode, self.mac)
+        super(Packet, self).__init__(self.opcode, self.mac)
         self.option_list = []
+        self.opt_dict = {}
 
         self.add_option(self.DHCP_MESSAGE_TYPE_OPTION, self.message_type)
 
-    def add_option(self, option, *args):
+    def add_option(self, option, *args: bytes):
         value = b''
         length = 0
         for i in args:
@@ -115,31 +117,30 @@ class Packet(BOOTPHeader):
         self.option_list.append(option + length + value)
 
     def pack(self):
-        self.add_option
         self.options = b'\x63\x82\x53\x63'  # Magic cookie
-        print(self.options)
+        # print(self.options)
 
         self.options += b''.join(self.option_list)
-        print(self.options)
+        # print(self.options)
 
         # Adauga la sfarsit optiunea END
-
         self.options += Packet.END_OPTION
-        print(self.options)
+        # print(self.options)
         return super(Packet, self).pack()
 
     def unpack(self, data):
         self.opcode, self.hardware_type, self.hardware_address_length, \
-        self.hops, self.xid, self.seconds, self.flags, self.client_ip, \
-        self.your_ip, self.server_ip, self.gateway_ip, self.client_hardware_address, \
-        self.server_host_name, self.boot_filename, self.options \
+            self.hops, self.xid, self.seconds, self.flags, self.client_ip, \
+            self.your_ip, self.server_ip, self.gateway_ip, self.client_hardware_address, \
+            self.server_host_name, self.boot_filename, self.options \
             = struct.unpack('cccc4s2s2s4s4s4s4s16s64s128s' + str(len(data) - 236) + 's', data)
 
-        self.opt_dict = {}
         idx = 4
 
         while True:
             try:
+                # lucru foarte enervant: aici op_code-urile sunt toate integer
+                # nu stiu de ce e asa, dar am pierdut cam o ora cu asta
                 op_code = self.options[idx]
                 if op_code == 255:
                     self.opt_dict[op_code] = ''
@@ -151,69 +152,52 @@ class Packet(BOOTPHeader):
             except IndexError:
                 break
 
-    #function for DHCPOFFER
-    def create_offer_packet(self, offered_ip, server_ip, xid, mac, lease_time,options):
-        self.opcode = Packet.DHCPOFFER
-        self.xid = xid
-        self.client_ip = b'\x00\x00\x00\x00'
-        self.your_ip = socket.inet_aton(offered_ip)
-        self.server_ip = socket.inet_aton(server_ip)
-        self.client_hardware_address = mac + b'\x00' * 10
-
-        self.options = Packet.DHCP_MESSAGE_TYPE_OPTION + b'\x01' + Packet.DHCPOFFER
-
-        self.options += Packet.SERVER_IDENTIFIER_OPTION + b'\x04' + bytes(server_ip,'utf-8')
-
-        self.options += Packet.IP_ADDRESS_LEASE_TIME_ADDRESS_OPTION + b'\x04' + lease_time.to_bytes(4, 'big')
-
-        self.options += options
-
-        self.options += b'\xff'
-
-        return self.pack()
-
-    #function for client to request a specific address
-    def request_specific_address(self, requested_ip: str) -> None:
-
-        requested_ip_bytes = socket.inet_aton(requested_ip)
-        self.options += Packet.REQUESTED_IP_ADDRESS_OPTION + b'\x04' + requested_ip_bytes
+        if int.from_bytes(self.DHCP_MESSAGE_TYPE_OPTION, 'big') in self.opt_dict:
+            self.message_type = self.opt_dict[int.from_bytes(self.DHCP_MESSAGE_TYPE_OPTION, 'big')]
+            if self.message_type == self.DHCPOFFER or self.message_type == self.DHCPACK or \
+                    self.message_type == self.DHCPNAK:
+                self.opcode = BOOTPHeader.REPLY
+            else:
+                self.opcode = BOOTPHeader.REQUEST
+        else:
+            print("Failed to get message_type from packet!")
 
     # for print to interface
-    def to_string(self):
+    def to_string(self) -> str:
 
-        str = ""
+        string = ""
         int_op = int.from_bytes(self.opcode, "big")
-        str += f"Opcode={int_op}" + "\n"
+        string += f"Opcode={int_op}" + "\n"
 
         int_htype = int.from_bytes(self.hardware_type, "big")
-        str += f"Hardware type={int_htype}" + "\n"
+        string += f"Hardware type={int_htype}" + "\n"
 
         int_hlen = int.from_bytes(self.hardware_address_length, "big")
-        str += f"Hardware address length{int_hlen}" + "\n"
+        string += f"Hardware address length={int_hlen}" + "\n"
 
         int_hops = int.from_bytes(self.hops, "big")
-        str += f"Hops={int_hops}" + "\n"
+        string += f"Hops={int_hops}" + "\n"
 
         int_xid = int.from_bytes(self.xid, "big")
-        str += f"Xid={int_xid}" + "\n"
+        string += f"Xid={int_xid}" + "\n"
 
         int_secs = int.from_bytes(self.seconds, "big")
-        str += f"Xid={int_secs}" + "\n"
+        string += f"Xid={int_secs}" + "\n"
 
-        str += f"Flags={self.flags}" + "\n"
+        string += f"Flags={self.flags}" + "\n"
 
-        str += f"Ciaddr={socket.inet_ntoa(self.client_ip)}" + "\n"
-        str += f"Yiaddr={socket.inet_ntoa(self.your_ip)}" + "\n"
-        str += f"Siaddr={socket.inet_ntoa(self.server_ip)}" + "\n"
-        str += f"Giaddr={socket.inet_ntoa(self.gateway_ip)}" + "\n"
+        string += f"Ciaddr={socket.inet_ntoa(self.client_ip)}" + "\n"
+        string += f"Yiaddr={socket.inet_ntoa(self.your_ip)}" + "\n"
+        string += f"Siaddr={socket.inet_ntoa(self.server_ip)}" + "\n"
+        string += f"Giaddr={socket.inet_ntoa(self.gateway_ip)}" + "\n"
 
-        chaddr = self.client_hardware_address.hex(":")
-        str += f"Chaddr={self.client_hardware_address}" + "\n"
+        # chaddr = self.client_hardware_address.hex(":")
+        string += f"Chaddr={self.client_hardware_address}" + "\n"
 
         # aceste doua campuri sunt provizorii pana vom adauga date
-        int_sname = int.from_bytes(self.server_host_name, "big")
+        # int_sname = int.from_bytes(self.server_host_name, "big")
         # print(f"Sname={int_sname}")
-        int_file = int.from_bytes(self.boot_filename, "big")
+        # int_file = int.from_bytes(self.boot_filename, "big")
         # print(f"File={int_file}")
 
         # sname=self.server_host_name.decode("ascii")
@@ -221,4 +205,33 @@ class Packet(BOOTPHeader):
         # file=self.boot_filename.decode("ascii")
         # print(f"File={file}")
 
-        return str
+        return string
+
+
+# functii pentru a crea mesaje "goale" (fara optiuni)
+# in continuare folosim functia add_option pentru a adauga optiunile
+
+
+def get_discover() -> Packet:
+    discover = Packet(Packet.DHCPDISCOVER)
+    return discover
+
+
+def get_offer() -> Packet:
+    offer = Packet(Packet.DHCPOFFER)
+    return offer
+
+
+def get_request() -> Packet:
+    request = Packet(Packet.DHCPREQUEST)
+    return request
+
+
+def get_ack() -> Packet:
+    ack = Packet(Packet.DHCPACK)
+    return ack
+
+
+def get_nak() -> Packet:
+    nak = Packet(Packet.DHCPNAK)
+    return nak
