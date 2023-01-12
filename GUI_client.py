@@ -222,7 +222,7 @@ class GuiClient:
         self.button_load_option.grid(row=15, column=1, padx=20, pady=20)
 
     def write_text(self, information):
-        self.text.delete('1.0', END)
+        #self.text.delete('1.0', END)
         self.text.insert(END, str(information))
 
     def delete_text(self):

@@ -7,6 +7,7 @@ import re
 
 import server
 
+message=""
 
 # am facut functiile de verificare putin mai generale
 # probabil o sa le mut intr-un modul separat
@@ -99,6 +100,7 @@ class GUIServerConfig:
         gui_server.run()
 
     def run(self):
+        global message
 
         label1 = Label(self.main_panel, text="Lease time", font=("Arial", 13))
         label2 = Label(self.main_panel, text="Name", font=("Arial", 13))
@@ -122,6 +124,11 @@ class GUIServerConfig:
         self.name_entry.insert(0, "Server.dhcp")
         self.ip_address_entry.insert(0, "127.0.0.1")
         self.mask_entry.insert(0, "24")
+
+        message+='Lease time: '+self.lease_entry.get()+'\n'
+        message+='Server name: '+self.name_entry.get()+'\n'
+        message+='Ip address: '+self.ip_address_entry.get()+'\n'
+        message+='Mask: '+self.mask_entry.get()
 
 
 class GUIServer:
@@ -149,7 +156,7 @@ class GUIServer:
         self.bottom_frame = Frame(self.main_panel)
 
         # self.view_text = Text(self.view_frame, state="disabled", width=65, height=10)
-        self.info_server = Text(self.view_frame, width=30, height=10)
+        self.info_server = Text(self.view_frame, width=40, height=10)
         # self.progress = Text(self.middle_frame, state="disabled", width=105, height=10)
 
         self.view_text = scrolledtext.ScrolledText(self.view_frame, state="disabled", height=10, width=70)
@@ -158,7 +165,6 @@ class GUIServer:
         self.release_ip_entry = Entry(self.bottom_frame)
         self.button_ip = Button(self.bottom_frame, height=1, width=10, text="Release",
                                 command=self.validate_ip_address)
-        # poate o comanda care redeschide view-ul de configurare?
         # self.button_stop = Button(self.bottom_frame, height=1, width=10, text="Stop Server")
         self.button_close = Button(self.bottom_frame, height=1, width=10, text="Close Server",
                                    command=self.return_to_config)
@@ -178,6 +184,7 @@ class GUIServer:
 
     def run(self):
 
+        global message
         self.view_frame.grid(row=0, column=0)
         self.middle_frame.grid(row=1, column=0)
         self.bottom_frame.grid(row=2, column=0)
@@ -185,8 +192,6 @@ class GUIServer:
         view_label = Label(self.view_frame, text="View")
         view_label.grid(row=1, column=0, padx=15, pady=10, sticky='w')
         self.view_text.grid(row=2, column=0, padx=15)
-
-        # self.write_text(message)
 
         text1_label = Label(self.bottom_frame, text="Release IP Address")
         text1_label.grid(row=2, column=0, pady=20)
@@ -205,7 +210,10 @@ class GUIServer:
         progress_label.grid(row=3, column=0, padx=15, pady=15, sticky='w')
         self.progress.grid(row=4, column=0, padx=15)
 
+        self.write_text(message)
+
     def write_text(self, message):
+        self.info_server.delete('1.0', END)
         self.info_server.insert('end', message)
 
     def write_to_terminal(self, msg):
@@ -214,6 +222,13 @@ class GUIServer:
         self.progress.insert('end', msg)
         self.progress.insert('end', '\n')
         self.progress['state'] = 'disabled'
+
+    def write_to_view(self, msg):
+        self.view_text['state'] = 'normal'
+        # might need to insert a '\n'
+        self.view_text.insert('end', msg)
+        self.view_text.insert('end', '\n')
+        self.view_text['state'] = 'disabled'
 
     # pseudo-destructor pentru a evita thread-uri orfane
     def cleanup(self):

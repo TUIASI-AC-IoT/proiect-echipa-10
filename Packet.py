@@ -118,14 +118,9 @@ class Packet(BOOTPHeader):
 
     def pack(self):
         self.options = b'\x63\x82\x53\x63'  # Magic cookie
-        # print(self.options)
-
         self.options += b''.join(self.option_list)
-        # print(self.options)
-
         # Adauga la sfarsit optiunea END
         self.options += Packet.END_OPTION
-        # print(self.options)
         return super(Packet, self).pack()
 
     def unpack(self, data):
@@ -193,17 +188,6 @@ class Packet(BOOTPHeader):
 
         # chaddr = self.client_hardware_address.hex(":")
         string += f"Chaddr={self.client_hardware_address}" + "\n"
-
-        # aceste doua campuri sunt provizorii pana vom adauga date
-        # int_sname = int.from_bytes(self.server_host_name, "big")
-        # print(f"Sname={int_sname}")
-        # int_file = int.from_bytes(self.boot_filename, "big")
-        # print(f"File={int_file}")
-
-        # sname=self.server_host_name.decode("ascii")
-        # print(f"Sname={sname}")
-        # file=self.boot_filename.decode("ascii")
-        # print(f"File={file}")
 
         return string
 

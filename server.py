@@ -34,7 +34,6 @@ class Server:
 
         self.socket.setblocking(False)
 
-        # provizoriu - pool de adrese se va lua din interfata
         self.address_pool = ['12.30.0.1', '12.30.0.2', '12.30.0.3']
         self.client_address_mapping = {}
 
@@ -47,8 +46,6 @@ class Server:
             print("Eroare la pornirea thread‐ului")
             sys.exit()
 
-    # problema la server - cand primeste mesaj de REQUEST il trateaza ca cel de DISCOVER
-    # aceasta functie cred ca o sa se mai modifice ca am facut o prea incarcata
     def receive_fct(self):
         contor = 0
         while self.running:
@@ -63,6 +60,7 @@ class Server:
                 packet_receive = Packet()
                 print("Received a packet!")
                 packet_receive.unpack(data)
+                print(packet_receive.message_type)
                 if packet_receive.message_type == Packet.DHCPDISCOVER:
                     self.gui.write_to_terminal("[SERVER] Received DHCPDISCOVER message")
                     threading.Thread(target=self.process_discover, args=(packet_receive, address)).start()
@@ -80,17 +78,12 @@ class Server:
 
     def process_discover(self, discover: Packet, address):
         offer_packet = get_offer()
-        # OFFER PACKET cu adrese random - pentru client adresa trebuie luata dintr-un pool de adrese,
-        # lease time-ul se va lua din interfata,trebuie modificata si adresa serverului
 
         offer_packet.xid = discover.xid
         offer_packet.client_ip = b'\x00\x00\x00\x00'
         offer_packet.your_ip = socket.inet_aton(self.choose_address())
         offer_packet.server_ip = socket.inet_aton(self.ip_address)
         offer_packet.client_hardware_address = discover.client_hardware_address
-
-        # constructor
-        # self.options = Packet.DHCP_MESSAGE_TYPE_OPTION + b'\x01' + Packet.DHCPOFFER
 
         offer_packet.add_option(Packet.SERVER_IDENTIFIER_OPTION, socket.inet_aton(self.ip_address))
         offer_packet.add_option(Packet.IP_ADDRESS_LEASE_TIME_ADDRESS_OPTION, self.lease_time.to_bytes(4, 'big'))
@@ -146,14 +139,15 @@ class Server:
         nak_packet.client_ip = b'\x00\x00\x00\x00'
         nak_packet.client_hardware_address = packet_receive.client_hardware_address
         self.socket.sendto(nak_packet.pack(), address)
+        self.gui.write_to_terminal('[SERVER] Send NAK')
 
     def send_ack(self, packet_receive, address):
 
         ack_packet = get_ack()
         ack_packet.xid = packet_receive.xid
         ack_packet.client_hardware_address = packet_receive.client_hardware_address
-        ack_packet.server_ip = packet_receive.server_ip
-        ack_packet.your_ip = packet_receive.client_ip
+        ack_packet.server_ip = socket.inet_aton(self.ip_address)
+        ack_packet.your_ip = packet_receive.your_ip
         ack_packet.add_option(Packet.IP_ADDRESS_LEASE_TIME_ADDRESS_OPTION, self.lease_time.to_bytes(4, 'big'))
         ack_packet.add_option(Packet.SERVER_IDENTIFIER_OPTION, socket.inet_aton(self.ip_address))
 
@@ -175,6 +169,8 @@ class Server:
         #     ack_packet.add_option(Packet.RENEWAL_TIME_VALUE_OPTION, t2.to_bytes(4, 'big'))
 
         self.socket.sendto(ack_packet.pack(), address)
+        self.gui.write_to_terminal("[SERVER] Send ACK with address "+socket.inet_ntoa(ack_packet.your_ip))
+        print(self.address_pool)
 
     # choose address from addresss pool - maybe need another way to choose?:))
     def choose_address(self):

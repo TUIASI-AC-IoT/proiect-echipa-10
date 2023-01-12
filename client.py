@@ -40,6 +40,7 @@ class Client:
         self.mac = b''
         self.your_ip = b''
         self.server_identifier = b''
+        self.server_ip = b''
         self.lease_time = int()
         self.t1 = int()
         self.t2 = int()
@@ -90,13 +91,15 @@ class Client:
                 # punem intr-un pachet ce s-a primit
                 received_packet = Packet()
                 received_packet.unpack(data)
-                self.gui.write_text(received_packet.to_string())
+                print("client")
+                print(received_packet.message_type)
+                # self.gui.write_text(received_packet.to_string())
                 if received_packet.message_type == Packet.DHCPDISCOVER:
                     self.gui.write_to_terminal("[CLIENT] Received DISCOVER???")
                     print("[CLIENT] Received DISCOVER???")
                 elif received_packet.message_type == Packet.DHCPOFFER:
                     self.gui.write_to_terminal("[CLIENT] Received DHCPOFFER")
-                    print("[CLIENT] Received DHCPOFFER")
+                    # self.gui.write_text(received_packet.to_string())
                     self.received_offer_event.set()
                     # trebuie citit continutul offer-ului si folosit
                     try:
@@ -106,8 +109,10 @@ class Client:
                     threading.Thread(target=self.process_offer).start()
                 elif received_packet.message_type == Packet.DHCPACK:
                     self.gui.write_to_terminal("[CLIENT] Received DHCPACK")
-                    print("[CLIENT] Received DHCPACK")
+                    # self.gui.write_text(received_packet.to_string())
                     threading.Thread(target=self.process_ack, args=[received_packet]).start()
+                elif received_packet.message_type == Packet.DHCPNAK:
+                    self.gui.write_to_terminal("[CLIENT] Received DHCPNAK")
 
     def prepare_discover(self, discover: Packet):
         self.prepared_discover = discover
@@ -146,7 +151,7 @@ class Client:
         # else:
         #     self.received_offer_event.clear()
         #     # self.process_offer()
-
+        self.gui.write_text(pack_discover.to_string())
         self.socket.sendto(pack_discover.pack(), ("<broadcast>", self.destination_port))
         # self.received_offer_event.wait(10)
         # self.received_offer_event.clear()
@@ -173,19 +178,11 @@ class Client:
         # reset discover timeout
         self.discover_timeout = self.initial_discover_timeout
 
-        # am rezolvat problema cu mac ul :)) de retinut - trebuie lucrat cu self.client_hardware_address, nu self.mac:))
-        if received_pack.client_hardware_address != self.mac:
-            print('iesit la mac')
-            return False
-        # check if offer is valid
-        if received_pack.xid != self.xid:
-            print('iesit la xid')
+        if received_pack.client_hardware_address != self.mac or received_pack.xid != self.xid:
             return False
 
-        # OFFER message transmit to client your_ip and server_ip
-        # your_ip nu e folosit decat de server
-        # self.your_ip = received_pack.your_ip
         self.server_identifier = received_pack.server_ip
+        self.server_ip = received_pack.server_ip
 
         self.send_request(received_pack)
 
@@ -194,10 +191,7 @@ class Client:
         packet_request = get_request()
         packet_request.client_hardware_address = packet_offer_receive.client_hardware_address
         packet_request.xid = packet_offer_receive.xid
-        # here we need to considerate that case when client want the address chosen by him
-        # packet_request.client_ip = packet_offer_receive.your_ip
-        # packet_request.your_ip = packet_offer_receive.your_ip
-        packet_request.server_ip = packet_offer_receive.server_ip
+
         packet_request.add_option(Packet.REQUESTED_IP_ADDRESS_OPTION, packet_offer_receive.your_ip)
         packet_request.add_option(Packet.SERVER_IDENTIFIER_OPTION, packet_offer_receive.server_ip)
 
@@ -208,36 +202,41 @@ class Client:
 
         assert int.from_bytes(Packet.IP_ADDRESS_LEASE_TIME_ADDRESS_OPTION, 'big') in received_ack.opt_dict
         self.lease_time = received_ack.opt_dict[int.from_bytes(Packet.IP_ADDRESS_LEASE_TIME_ADDRESS_OPTION, 'big')]
+        lease = int.from_bytes(self.lease_time, byteorder='big')
+        print(lease)
         if int.from_bytes(Packet.RENEWAL_TIME_VALUE_OPTION, 'big') in received_ack.opt_dict:
             self.t1 = received_ack.opt_dict[int.from_bytes(Packet.RENEWAL_TIME_VALUE_OPTION, 'big')]
         else:
-            self.t1 = int(self.lease_time / 2)
+            self.t1 = int(lease / 2)
         if int.from_bytes(Packet.REBINDING_TIME_VALUE_OPTION, 'big') in received_ack.opt_dict:
             self.t2 = received_ack.opt_dict[int.from_bytes(Packet.REBINDING_TIME_VALUE_OPTION, 'big')]
         else:
-            self.t2 = int(self.lease_time * 7 / 8)
-        # teoretic ar trebui salvate/folosite si celelalte optiuni
+            self.t2 = int(lease * 7 / 8)
 
         # planificare renew si rebind
         if self.renew_timer is not None:
             self.renew_timer.cancel()
         if self.rebind_timer is not None:
             self.rebind_timer.cancel()
-        self.renew_timer = threading.Timer(self.t1, self.send_renew, args=socket.inet_ntoa(received_ack.server_ip)).start()
-        self.rebind_timer = threading.Timer(self.t2, self.send_rebind, args=socket.inet_ntoa(received_ack.server_ip)).start()
+        self.renew_timer = threading.Timer(self.t1, self.send_renew).start()
+        self.rebind_timer = threading.Timer(self.t2, self.send_rebind).start()
 
-    def send_renew(self, address):
+    def send_renew(self):
         request = get_request()
+        print("renew")
+        print(request.message_type)
+        request.xid=self.xid
         request.client_hardware_address = self.mac
         request.client_ip = self.your_ip
         request.add_option(Packet.REQUESTED_IP_ADDRESS_OPTION, self.your_ip)
-
-        self.socket.sendto(request.pack(), address)
+        self.gui.write_to_terminal("[CLIENT] Send renew")
+        self.socket.sendto(request.pack(), (socket.inet_ntoa(self.server_ip), 67))
 
     def send_rebind(self):
         request = get_request()
+        request.xid=self.xid
         request.client_hardware_address = self.mac
         request.client_ip = self.your_ip
         request.add_option(Packet.REQUESTED_IP_ADDRESS_OPTION, self.your_ip)
-
+        self.gui.write_to_terminal("[CLIENT] Send rebind")
         self.socket.sendto(request.pack(), ("<broadcast>", 67))
